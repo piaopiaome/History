@@ -1,0 +1,123 @@
+创建一张原始数据表
+创建一张修改后的表
+创建临时表，将新增数据，修改数据添加进去
+      将修改的数据添加进去
+	insert into temp 
+	( select a.*
+	from orders a inner join  ad b
+	on a.orderid = b.orderid
+	where a.modifiedtime != b.modifiedtime and a.statuss != b.statuss);
+     将新增的数据增加进去
+
+
+创建历史数据表，将ad中的数据添加进去
+create table histable(
+id int(10),
+createtime date,
+modifiedtime date,
+statuss varchar(20),
+start_date date,
+end_date date
+);
+
+insert into histable (id,createtime,modifiedtime,statuss,start_date)
+select orderid,createtime,modifiedtime,statuss,createtime
+from ad;
+
+先闭链在添加数据
+  用历史拉链表与temp表做比较
+	select histable.id,orders.modifiedtime
+	from histable inner join temp
+	on histable.id=temp.orderid
+	where histable.modifiedtime != temp.modifiedtime;
+  查询后的结果当作临时表a
+  更新histable中end_date为a中的属性
+
+	update histable,(select histable.id,temp.modifiedtime
+	from histable inner join temp
+	on histable.id=temp.orderid
+	where histable.modifiedtime != temp.modifiedtime) a
+	set histable.end_date=a.modifiedtime
+	where histable.id=a.id; 
+将历史拉链中的end_date中为null的数据换为9999-12-31
+	update histable
+	set end_date='9999-12-31'
+	where end_date is null;
+然后添加临时表中的数据
+  查询临时表中的id，id大于历史表的数据插入到历史表中
+	insert into histable(id,createtime,modifiedtime,statuss,start_date)
+	select distinct a.orderid,a.createtime,a.modifiedtime,a.statuss,a.createtime
+	from temp a,histable b
+	where a.orderid>b.id;
+
+将新增数据的end_date改为9999-12-31
+
+
+改进：可以将历史拉链表中的end_date设为默认值9999-12-31
+	
+	create table histable(
+	id int(10),
+	createtime date,
+	modifiedtime date,
+	statuss varchar(20),
+	start_date date,
+	end_date date default '9999-12-31'
+	);
+
+          表中的订单号是唯一不变，当订单的状态变化的时候需要根据订单id号是否相同来判断订单的变化过程。
+          将历史拉链表中id不设为自增/主键属性
+          历史拉链表与临时表作比较进行修改end_date
+
+	
+	update histable a,temp b
+	set a.end_date=b.modifiedtime
+	where a.id=b.orderid and a.createtime=b.createtime 
+	and a.modifiedtime!=b.modifiedtime and a.statuss!=b.statuss;
+
+        将历史表中添加上temp中的数据
+	insert into histable(id,createtime,modifiedtime,statuss,start_date)
+	select orderid,createtime,modifiedtime,statuss,createtime
+	from temp;
+
+
+
+整体思路：
+创建一张原始数据表
+创建一张修改后的表
+创建临时表，将新增数据，修改数据添加进去
+      将修改的数据添加进去
+	insert into temp 
+	( select a.*
+	from orders a inner join  ad b
+	on a.orderid = b.orderid
+	where a.modifiedtime != b.modifiedtime and a.statuss != b.statuss);
+     将新增的数据增加进去
+	insert into temp
+	select a.*
+	from orders a left join ad b
+	on a.orderid=b.orderid
+	where b.orderid is null;
+
+创建历史数据表，将ad中的数据添加进去
+	create table histable(
+	id int(10),
+	createtime date,
+	modifiedtime date,
+	statuss varchar(20),
+	start_date date,
+	end_date date default '9999-12-31'
+	);
+
+	insert into histable (id,createtime,modifiedtime,statuss,start_date)
+	select orderid,createtime,modifiedtime,statuss,createtime
+	from ad;
+
+历史拉链表与临时表作比较，闭链
+	update histable a,temp b
+	set a.end_date=b.modifiedtime
+	where a.id=b.orderid and a.createtime=b.createtime 
+	and a.modifiedtime!=b.modifiedtime and a.statuss!=b.statuss;
+将temp中的数据插入到历史拉链表中
+	insert into histable(id,createtime,modifiedtime,statuss,start_date)
+	select orderid,createtime,modifiedtime,statuss,createtime
+	from temp;
